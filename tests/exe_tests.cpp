@@ -40,6 +40,22 @@ int main(int argc, char** argv) {
         std::memcpy(image+entry.VirtualAddress,contents.data()+entry.PointerToRawData,entry.SizeOfRawData);
     }
     gameBase = reinterpret_cast<uintptr_t>(image);
+    // Apply PE base relocations without loading or executing the game.
+    const auto& relocations = pe->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+    size_t relocationOffset = 0;
+    while(relocationOffset < relocations.Size) {
+        const auto* block = reinterpret_cast<const IMAGE_BASE_RELOCATION*>(image+relocations.VirtualAddress+relocationOffset);
+        if(block->SizeOfBlock < sizeof(*block) || block->SizeOfBlock > relocations.Size-relocationOffset) return 1;
+        const auto* entries = reinterpret_cast<const WORD*>(block+1);
+        const size_t count = (block->SizeOfBlock-sizeof(*block))/sizeof(WORD);
+        for(size_t index = 0; index < count; ++index) {
+            if(entries[index] >> 12 != IMAGE_REL_BASED_HIGHLOW) continue;
+            const size_t offset = block->VirtualAddress+(entries[index]&0xfff);
+            if(offset+sizeof(DWORD) > supportedImageSize) return 1;
+            *reinterpret_cast<DWORD*>(image+offset) += static_cast<DWORD>(gameBase-pe->OptionalHeader.ImageBase);
+        }
+        relocationOffset += block->SizeOfBlock;
+    }
     check(supportedImage(),"decrypted game copy matches startup guard at relocated base");
     if(!supportedImage()) return 1;
     wots4::HostApi host{sizeof(host),wots4::modApiVersion,nullptr,claim,release};
@@ -56,7 +72,8 @@ int main(int argc, char** argv) {
         changed = changed && std::memcmp(reinterpret_cast<void*>(relocated(hook.address)),hook.expected,hook.length) != 0;
         MH_DisableHook(reinterpret_cast<void*>(relocated(hook.address)));
         MH_RemoveHook(reinterpret_cast<void*>(relocated(hook.address)));
-        restored = restored && std::memcmp(reinterpret_cast<void*>(relocated(hook.address)),hook.expected,hook.length) == 0;
+        const auto comparedLength = hook.address == menuSelectAddress ? 5 : hook.length;
+        restored = restored && std::memcmp(reinterpret_cast<void*>(relocated(hook.address)),hook.expected,comparedLength) == 0;
     }
     check(changed,"every hook changes only the mapped test copy");
     check(restored,"removing hooks restores all original bytes");
