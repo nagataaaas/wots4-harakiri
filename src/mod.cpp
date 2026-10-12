@@ -385,11 +385,15 @@ bool installHooks(const wots4::ModContext& context) {
 } // namespace
 
 extern "C" BOOL WINAPI ModInitialize(const wots4::ModContext* context) {
-    if(!context || context->size < sizeof(*context) || context->version != wots4::modApiVersion ||
-        !context->game || !context->directory || !context->host ||
-        context->host->size < sizeof(wots4::HostApi) || context->host->version != wots4::modApiVersion ||
-        !context->host->claim || !context->host->releaseClaims)
+    if(!context || context->size < sizeof(*context) || !context->game || !context->directory || !context->host)
         return FALSE;
+    if(context->version != wots4::modApiVersion || context->host->size < sizeof(wots4::HostApi) ||
+        context->host->version != wots4::modApiVersion || !context->host->claim || !context->host->releaseClaims) {
+        if(context->host->size >= sizeof(uint32_t)*2+sizeof(void*) && context->host->log)
+            context->host->log(context->module,
+                "[ERROR] Could not initialize Harakiri: the ModLoader's Mod API version differs from the one this Mod was built for; initialization stopped.");
+        return FALSE;
+    }
     gameBase = reinterpret_cast<uintptr_t>(context->game);
     if(!supportedImage()) {
         log(*context,"[ERROR] Could not initialize Harakiri: game version or code does not match; initialization stopped.");
