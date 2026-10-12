@@ -46,6 +46,7 @@ int main() {
     alignas(16) BYTE character[0x400] = {};
     *reinterpret_cast<void**>(frame-0xc) = character;
     volatile float& vitality = *reinterpret_cast<float*>(character+vitalityOffset);
+    volatile BYTE& poolIncrease = frame[poolIncreaseArgumentOffset];
     BYTE gameState[0x20] = {}, buffer[0x20] = {};
     BYTE* gameStateInstance = gameState;
     gameStatePointer = reinterpret_cast<uintptr_t>(&gameStateInstance);
@@ -63,6 +64,16 @@ int main() {
     check(remaining == 0,"native survival bonus cannot leave one health point");
     runHook(knockoutHook,frame);
     check(vitality == 0,"knockout vitality is zero");
+    damage = 500; remaining = 1; // The native vitality floor clamp rewrites the damage.
+    runHook(outcomeHook,frame);
+    check(remaining == 1,"slash clamped to the native vitality floor survives");
+    poolIncrease = 1; damage = 25; remaining = 100;
+    runHook(damageHook,frame); runHook(outcomeHook,frame);
+    check(damage == 25 && remaining == 100,"pool increase call keeps native amount and pool");
+    poolIncrease = 0;
+    damage = 0; remaining = 100;
+    runHook(damageHook,frame); runHook(outcomeHook,frame);
+    check(damage == 0 && remaining == 100,"natively zeroed damage stays harmless");
     gameState[0x18] = 1;
     damage = 25; remaining = 100; vitality = 50;
     runHook(damageHook,frame); runHook(outcomeHook,frame); runHook(knockoutHook,frame);

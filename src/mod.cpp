@@ -18,6 +18,8 @@ constexpr uintptr_t outcomeAddress = 0x49de4b;
 constexpr uintptr_t knockoutAddress = 0x49dee2;
 enum : DWORD { lethalDamageBits = 0x4e6e6b28 }; // 1,000,000,000.0f: finite and within signed integer range.
 enum : size_t { vitalityOffset = 0x1f8 }; // Current vitality in CharacterParameter.
+// Damage function frame: nonzero third argument adds the amount to the pool instead of subtracting it.
+enum : size_t { poolIncreaseArgumentOffset = 0x14 };
 uintptr_t gameBase;
 uintptr_t relocated(uintptr_t address) { return gameBase + address - preferredImageBase; }
 enum class Difficulty : BYTE { Easy, Normal, Hard, VeryHard, Harakiri };
@@ -245,6 +247,11 @@ __declspec(naked) void damageHook() {
         je noDamageChange
         cmp byte ptr [eax+nativeDifficultyOffset], veryHardDifficulty
         jne noDamageChange
+        cmp byte ptr [ebp+poolIncreaseArgumentOffset], 0
+        jne noDamageChange
+        // Native code zeroes damage for protected targets (0x49dac8, 0x49db03, 0x49db30); keep those harmless.
+        cmp dword ptr [ebp-8], 0 // Positive floats compare as positive integers.
+        jle noDamageChange
         mov dword ptr [ebp-8], lethalDamageBits
     noDamageChange:
         pop eax
@@ -264,6 +271,10 @@ __declspec(naked) void outcomeHook() {
         test eax, eax
         je noOutcomeChange
         cmp byte ptr [eax+nativeDifficultyOffset], veryHardDifficulty
+        jne noOutcomeChange
+        // Only hits that still carry the lethal damage: zero-damage hits, pool increases, and slashes
+        // clamped to a vitality floor (0x49dd1f rewrites the damage) keep the native result.
+        cmp dword ptr [ebp-8], lethalDamageBits
         jne noOutcomeChange
         // Override the native random survival bonus after pool subtraction.
         mov dword ptr [ebp-14h], 0
