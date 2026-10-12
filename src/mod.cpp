@@ -54,8 +54,8 @@ constexpr uintptr_t serializeAddress = 0x4d9efa;
 // Save list uses a four-entry stack table; intercept before indexing it.
 constexpr uintptr_t saveLabelAddress = 0x53fe4b;
 constexpr size_t difficultyMapOffset = 0x2a;
-constexpr size_t menuFlagsBeginOffset = 0x74;
-constexpr size_t menuFlagsEndOffset = 0x78;
+// Selectable-row flags of the item column (column 1); 0x5bdb20 addresses column N at 0x40 + N*0x30.
+enum : size_t { menuFlagsBeginOffset = 0x70, menuFlagsEndOffset = 0x74 };
 constexpr uint32_t nativeDifficultyCount = 4;
 void* originalMenuBuild;
 void* originalMenuSelect;

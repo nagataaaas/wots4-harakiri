@@ -21,7 +21,7 @@ __declspec(naked) void mockAppendRow() {
         mov appendedMenu, edi
         mov eax, [esp+4]
         mov appendedFlags, eax
-        add dword ptr [edi+78h], 4
+        add dword ptr [edi+menuFlagsEndOffset], 4
         ret 4
     }
 }

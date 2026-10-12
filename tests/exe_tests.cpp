@@ -58,6 +58,12 @@ int main(int argc, char** argv) {
     }
     check(supportedImage(),"decrypted game copy matches startup guard at relocated base");
     if(!supportedImage()) return 1;
+    // 0x5bdbd0: mov eax,[edi+esi*8+0x44] / cmp eax,[edi+esi*8+0x48] / lea ecx,[edi+esi*8+0x40], esi*8 = column*0x30.
+    const BYTE rowFlagsAccess[] = {0x8b,0x44,0xf7,0x44,0x3b,0x44,0xf7,0x48,0x8d,0x4c,0xf7,0x40};
+    constexpr size_t itemColumnOffset = 0x30;
+    check(std::memcmp(reinterpret_cast<void*>(relocated(0x5bdbd0)),rowFlagsAccess,sizeof(rowFlagsAccess)) == 0 &&
+        menuFlagsBeginOffset == 0x40+itemColumnOffset && menuFlagsEndOffset == 0x44+itemColumnOffset,
+        "menu row flag offsets match the native row append function");
     wots4::HostApi host{sizeof(host),wots4::modApiVersion,nullptr,claim,release};
     wots4::ModContext context{sizeof(context),wots4::modApiVersion,nullptr,nullptr,
         reinterpret_cast<HMODULE>(image),L"",&host};
