@@ -1,23 +1,66 @@
 # Harakiri (one-hit death)
 
-A one-hit death mode for Way of the Samurai 4 on Steam. Attack damage is greatly increased for both the player and NPCs. Blade attacks use the native death handling; blunt attacks leave vitality at zero and use the native knockout handling.
+[日本語](README.md)
 
-This is a development version. In-game verification is still required. Special event invulnerability and attacks outside the normal damage path may remain unaffected.
+> [!NOTE]
+> This Mod is for the [Steam version of Way of the Samurai 4](https://store.steampowered.com/app/312780/4/?l=english) only.
 
-Install `mods/harakiri/mod.dll` and `config.ini` alongside the ModLoader. The difficulty menu gains a final entry named "Harakiri" ("一撃死" in Japanese). Selecting it enables the mode; selecting a native difficulty disables it. Hard and Very Hard keep their existing unlock requirements.
+Adds a "Harakiri" difficulty. Both the player and NPCs go down after a single hit.
 
-The native highest difficulty is displayed as VeryHard in English. The new final difficulty is displayed as Harakiri.
+## Features
 
-Everything except one-hit death uses Very Hard behavior, including enemy strength, evaluation, rewards, and weapon generation. The Mod and saves use a separate `Harakiri = 4` difficulty, translated to `VeryHard = 3` for native gameplay. Selecting native Normal or Very Hard does not enable one-hit death.
+### The Harakiri difficulty
 
-Saving, loading, and retrying after death preserve Harakiri. Save slots display "Harakiri" ("一撃死" in Japanese). Loading a save made in Harakiri requires this Mod. `[harakiri] enabled=0` in `config.ini` disables the entire Mod. The default is 1; enabling the Mod does not make native difficulties lethal.
+- The difficulty menu gains a final entry named "Harakiri" ("一撃死" in Japanese). Hard and Very Hard keep their existing unlock requirements.
+- A blade attack kills, and a blunt attack empties stamina and knocks out. This applies to both the player and NPCs.
+- A constable's arrest kick deals its original health damage and empties your stamina in one kick, so you are arrested.
+- Everything except one-hit death is the same as Very Hard (enemy strength, evaluation and rewards, weapon generation, and so on).
 
-A constable's arrest kick deals its original health damage and empties your stamina in one kick, so you are arrested. Attacks that deal no damage in the original game, and scenes where the game sets a minimum health, do not kill you; the game continues as usual.
+### Saves
 
-Torture uses a separate gauge calculation. This Mod does not change torture damage.
+- Save slots display "Harakiri" ("一撃死" in Japanese).
+- Loading a save made in Harakiri requires this Mod.
 
-The Mod verifies the supported game version and code before installing hooks in memory. Game files are not modified.
+### When one-hit death does not apply
 
-From the ModLoader repository, run `cmake -S . -B build -A Win32` and `cmake --build build --config Release`. The output is `build/game/mods/harakiri/mod.dll`. For a standalone build, pass `-DWOTS4_SDK_DIR=<path to ModLoader>`.
+- Attacks that deal no damage in the original game, and scenes where the game sets a minimum health, do not kill; the game continues as usual.
+- Special invulnerability during events, and attacks that deal damage outside the usual way, may not be one-hit death.
+- Torture damage is not changed.
 
-Run tests with `ctest --test-dir build -C Release -R harakiri --output-on-failure`. Tests do not start the game.
+### Verified in game
+
+The following have been confirmed to play without problems in game.
+
+- Combat
+  - How health and stamina go down
+  - DLC NPCs whose health behaves in special ways
+- Arrests by constables, okappiki, and others
+- Torture
+- Night visits (yobai)
+
+## Installation
+
+> [!WARNING]
+> Install [wots4-mods (ModLoader)](https://github.com/nagataaaas/wots4-mods) first.
+
+1. Close the game.
+2. Download `wots4-mod-harakiri-<version>.zip` from [Releases](../../releases) and extract it.
+3. Copy the extracted `mods` folder into the game's installation folder (the folder containing `WayOfTheSamurai4.exe`). If a `mods` folder already exists, merge the contents into it.
+4. Confirm that `{game installation folder}/mods/harakiri/mod.dll` exists, then start the game.
+
+To keep your current settings when updating, replace only `mod.dll` and do not overwrite `mods/harakiri/config.ini`.
+
+## Settings
+
+Close the game and edit `{game installation folder}/mods/harakiri/config.ini`. Save the file and start the game to apply the settings.
+
+| Section    | Key       | Default | Description                                                                                                                                    |
+| ---------- | --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `harakiri` | `enabled` | `1`     | `0` disables the entire Mod, and the Harakiri difficulty no longer appears. Setting it to `1` does not make other difficulties one-hit death. |
+
+## Building
+
+> [!NOTE]
+> You do not need this just to use the Mod. Refer to it only if you want to fix or develop it.
+
+It is usually built inside [wots4-mods](https://github.com/nagataaaas/wots4-mods). To build only this Mod, run CMake with `-DWOTS4_SDK_DIR=<path to wots4-mods>`.
