@@ -15,7 +15,7 @@ endif()
 # Use the Mod's folder name in the game folder (mods/<name>/) as <name>
 wots4_use_minhook()
 wots4_add_mod(harakiri SOURCES src/mod.cpp DEF src/mod.def
-    LIBS wots4_minhook FILES config.ini NO_RELEASE)
+    LIBS wots4_minhook FILES config.ini)
 if(WOTS4_BUILD_TESTS)
     wots4_add_probe(harakiri_damage_tests SOURCES tests/damage_tests.cpp LIBS wots4_minhook)
     wots4_add_probe(harakiri_ui_tests SOURCES tests/ui_tests.cpp LIBS wots4_minhook)
