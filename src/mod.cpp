@@ -8,6 +8,8 @@ namespace {
 constexpr uintptr_t preferredImageBase = 0x400000;
 constexpr DWORD supportedTimestamp = 0x683d42eb;
 constexpr DWORD supportedImageSize = 0x65b000;
+// The Steam executable keeps its DRM wrapper section, so the running image is larger than the decrypted copy.
+constexpr DWORD steamImageSize = 0x689000;
 // Shared attack damage before pool subtraction.
 constexpr uintptr_t damageAddress = 0x49db35;
 // Remaining pool before the native death/knockout decision.
@@ -327,8 +329,10 @@ bool supportedImage() {
     const auto* pe = reinterpret_cast<const IMAGE_NT_HEADERS32*>(gameBase + dos->e_lfanew);
     if(pe->Signature != IMAGE_NT_SIGNATURE || pe->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 ||
         pe->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC ||
-        pe->FileHeader.TimeDateStamp != supportedTimestamp || pe->OptionalHeader.SizeOfImage != supportedImageSize)
+        pe->FileHeader.TimeDateStamp != supportedTimestamp)
         return false;
+    const auto imageSize = pe->OptionalHeader.SizeOfImage;
+    if(imageSize != supportedImageSize && imageSize != steamImageSize) return false;
     for(const auto& hook : hooks) {
         // The selection instruction contains an absolute address relocated by Windows.
         const auto comparedLength = hook.address == menuSelectAddress ? 5 : hook.length;

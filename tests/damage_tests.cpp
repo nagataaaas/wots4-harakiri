@@ -125,6 +125,11 @@ int main() {
     ++pe->FileHeader.TimeDateStamp;
     check(!supportedImage(),"changed timestamp is refused");
     --pe->FileHeader.TimeDateStamp;
+    pe->OptionalHeader.SizeOfImage = steamImageSize;
+    check(supportedImage(),"running Steam executable image size is accepted");
+    ++pe->OptionalHeader.SizeOfImage;
+    check(!supportedImage(),"unknown image size is refused");
+    pe->OptionalHeader.SizeOfImage = supportedImageSize;
     pe->FileHeader.Machine = IMAGE_FILE_MACHINE_AMD64;
     check(!supportedImage(),"64-bit image is refused");
     VirtualFree(image,0,MEM_RELEASE);
