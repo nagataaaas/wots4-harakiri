@@ -12,7 +12,7 @@ Everything except one-hit death uses Very Hard behavior, including enemy strengt
 
 Saving, loading, and retrying after death preserve Harakiri. Save slots display "Harakiri" ("一撃死" in Japanese). Loading a save made in Harakiri requires this Mod. `[harakiri] enabled=0` in `config.ini` disables the entire Mod. The default is 1; enabling the Mod does not make native difficulties lethal.
 
-Attacks that deal no damage in the original game, and scenes where the game sets a minimum health, do not kill you; the game continues as usual.
+A constable's arrest kick deals its original health damage and empties your stamina in one kick, so you are arrested. Attacks that deal no damage in the original game, and scenes where the game sets a minimum health, do not kill you; the game continues as usual.
 
 Torture uses a separate gauge calculation. This Mod does not change torture damage.
 

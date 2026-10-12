@@ -8,6 +8,22 @@ void check(bool condition, const char* name) {
     condition ? ++passed : ++failed;
 }
 __declspec(naked) void returnFromHook() { __asm { ret } }
+BYTE* drainedCharacter;
+float drainedAmount, drainedSecondAmount;
+uint32_t drainedWithoutArmor;
+// Mirrors 0x485820: character in esi, three stack arguments, callee pops them.
+__declspec(naked) void mockQueueStaminaDrain() {
+    __asm {
+        mov drainedCharacter, esi
+        mov eax, [esp+4]
+        mov drainedAmount, eax
+        mov eax, [esp+8]
+        mov drainedSecondAmount, eax
+        mov eax, [esp+12]
+        mov drainedWithoutArmor, eax
+        ret 12
+    }
+}
 __declspec(naked) void runHook(void* hook, void* frame) {
     __asm {
         mov eax, [esp+8]
@@ -74,6 +90,34 @@ int main() {
     damage = 0; remaining = 100;
     runHook(damageHook,frame); runHook(outcomeHook,frame);
     check(damage == 0 && remaining == 100,"natively zeroed damage stays harmless");
+    meleeHitReturn = 0x12345678;
+    queueStaminaDrainFunction = mockQueueStaminaDrain;
+    uint32_t hitRecord[6] = {0xe0,0xffffffff,arrestKickKind,0,3,1};
+    *reinterpret_cast<uintptr_t*>(frame+4) = meleeHitReturn;
+    *reinterpret_cast<uint32_t**>(frame+hitRecordArgumentOffset) = hitRecord;
+    *reinterpret_cast<float*>(character+staminaMaxOffset) = 1000;
+    *reinterpret_cast<float*>(character+staminaShieldOffset) = 20;
+    damage = 40; remaining = 1000;
+    runHook(damageHook,frame); runHook(outcomeHook,frame);
+    check(damage == 40 && remaining == 1000,"arrest kick keeps its native health damage");
+    check(drainedCharacter == character && drainedAmount == 1020 && drainedSecondAmount == 0 && drainedWithoutArmor == 1,
+        "arrest kick empties stamina and shield without armor reduction");
+    drainedCharacter = nullptr;
+    *reinterpret_cast<int*>(character+characterIdOffset) = 215;
+    damage = 40;
+    runHook(damageHook,frame);
+    check(damage == 1000000000.0f && !drainedCharacter,"kick against an NPC stays lethal");
+    *reinterpret_cast<int*>(character+characterIdOffset) = playerCharacterId;
+    hitRecord[2] = 0x27;
+    damage = 40;
+    runHook(damageHook,frame);
+    check(damage == 1000000000.0f && !drainedCharacter,"other melee hits on the player stay lethal");
+    hitRecord[2] = arrestKickKind;
+    *reinterpret_cast<uintptr_t*>(frame+4) = 0;
+    damage = 40;
+    runHook(damageHook,frame);
+    check(damage == 1000000000.0f && !drainedCharacter,"hits from other callers stay lethal");
+    *reinterpret_cast<uint32_t**>(frame+hitRecordArgumentOffset) = nullptr;
     gameState[0x18] = 1;
     damage = 25; remaining = 100; vitality = 50;
     runHook(damageHook,frame); runHook(outcomeHook,frame); runHook(knockoutHook,frame);
@@ -129,7 +173,14 @@ int main() {
     *reinterpret_cast<uintptr_t*>(relocated(menuSelectAddress)+5) = relocated(gameStateAddress);
     std::memcpy(reinterpret_cast<void*>(relocated(appendRowAddress)),appendRowBytes,sizeof(appendRowBytes));
     std::memcpy(reinterpret_cast<void*>(relocated(clearRowsAddress)),clearRowsBytes,sizeof(clearRowsBytes));
+    std::memcpy(reinterpret_cast<void*>(relocated(queueStaminaDrainAddress)),queueStaminaDrainBytes,sizeof(queueStaminaDrainBytes));
+    auto* meleeHitCall = reinterpret_cast<BYTE*>(relocated(meleeHitCallAddress));
+    meleeHitCall[0] = 0xe8;
+    *reinterpret_cast<int32_t*>(meleeHitCall+1) = static_cast<int32_t>(damageFunctionAddress-meleeHitReturnAddress);
     check(supportedImage(),"supported synthetic PE at relocated base");
+    meleeHitCall[1] ^= 1;
+    check(!supportedImage(),"melee hit call to another function is refused");
+    meleeHitCall[1] ^= 1;
     image[damageAddress-preferredImageBase] ^= 1;
     check(!supportedImage(),"changed damage code is refused");
     image[damageAddress-preferredImageBase] ^= 1;

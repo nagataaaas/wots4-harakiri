@@ -20,6 +20,18 @@ enum : DWORD { lethalDamageBits = 0x4e6e6b28 }; // 1,000,000,000.0f: finite and 
 enum : size_t { vitalityOffset = 0x1f8 }; // Current vitality in CharacterParameter.
 // Damage function frame: nonzero third argument adds the amount to the pool instead of subtracting it.
 enum : size_t { poolIncreaseArgumentOffset = 0x14 };
+// Constables' arrest kicks reach the damage function from the melee hit handler (return address 0x488a5a),
+// whose fifth argument is its hit record; the record's third field is 0x28 for these kicks.
+constexpr uintptr_t meleeHitReturnAddress = 0x488a5a;
+enum : size_t { hitRecordArgumentOffset = 0x18, hitRecordKindOffset = 8, characterIdOffset = 4 };
+enum : DWORD { arrestKickKind = 0x28 };
+enum : int { playerCharacterId = 0 };
+// 0x485820 queues a stamina drain on the character in esi and raises the exhaustion event when it empties
+// stamina; a nonzero third argument skips the armor reduction. Exhaustion is what lets constables arrest.
+constexpr uintptr_t queueStaminaDrainAddress = 0x485820;
+enum : size_t { staminaMaxOffset = 0x34c, staminaShieldOffset = 0x354 };
+uintptr_t meleeHitReturn;
+void* queueStaminaDrainFunction;
 uintptr_t gameBase;
 uintptr_t relocated(uintptr_t address) { return gameBase + address - preferredImageBase; }
 enum class Difficulty : BYTE { Easy, Normal, Hard, VeryHard, Harakiri };
@@ -234,6 +246,18 @@ __declspec(naked) void saveLabelHook() {
         jmp dword ptr [saveLabelContinuation]
     }
 }
+// Only arrest kicks reach this; the native damage code calls game functions here with an empty x87 stack too.
+void __cdecl exhaustStamina(BYTE* character) {
+    const float drain = *reinterpret_cast<const float*>(character+staminaMaxOffset) +
+        *reinterpret_cast<const float*>(character+staminaShieldOffset);
+    __asm {
+        mov esi, character
+        push 1
+        push 0
+        push dword ptr [drain]
+        call dword ptr [queueStaminaDrainFunction]
+    }
+}
 // Integer stores preserve the x87 stack and avoid calls in the attack path.
 __declspec(naked) void damageHook() {
     __asm {
@@ -252,6 +276,29 @@ __declspec(naked) void damageHook() {
         // Native code zeroes damage for protected targets (0x49dac8, 0x49db03, 0x49db30); keep those harmless.
         cmp dword ptr [ebp-8], 0 // Positive floats compare as positive integers.
         jle noDamageChange
+        // Arrest kicks keep their native health damage and empty stamina instead, so one kick arrests.
+        mov eax, dword ptr [ebp+4]
+        cmp eax, meleeHitReturn
+        jne lethalDamage
+        mov eax, dword ptr [ebp+hitRecordArgumentOffset]
+        test eax, eax
+        je lethalDamage
+        cmp dword ptr [eax+hitRecordKindOffset], arrestKickKind
+        jne lethalDamage
+        mov eax, dword ptr [ebp-0ch]
+        cmp dword ptr [eax+characterIdOffset], playerCharacterId
+        jne lethalDamage
+        pop eax
+        popfd
+        pushad
+        pushfd
+        push dword ptr [ebp-0ch]
+        call exhaustStamina
+        add esp, 4
+        popfd
+        popad
+        jmp dword ptr [originalDamage]
+    lethalDamage:
         mov dword ptr [ebp-8], lethalDamageBits
     noDamageChange:
         pop eax
@@ -273,7 +320,7 @@ __declspec(naked) void outcomeHook() {
         cmp byte ptr [eax+nativeDifficultyOffset], veryHardDifficulty
         jne noOutcomeChange
         // Only hits that still carry the lethal damage: zero-damage hits, pool increases, and slashes
-        // clamped to a vitality floor (0x49dd1f rewrites the damage) keep the native result.
+        // clamped to a vitality floor (0x49dd1f rewrites the damage), e.g. arrests, keep the native result.
         cmp dword ptr [ebp-8], lethalDamageBits
         jne noOutcomeChange
         // Override the native random survival bonus after pool subtraction.
@@ -320,6 +367,9 @@ const BYTE menuBuildBytes[] = {0x8b,0xc6,0xe8,0xbb,0x05,0x0d,0x00};
 const BYTE menuSelectBytes[] = {0x8a,0x54,0x43,0x2a,0xa1,0x7c,0x96,0x9e,0x00};
 const BYTE appendRowBytes[] = {0x55,0x8b,0xec,0x83,0xe4,0xf8,0x6a,0xff};
 const BYTE clearRowsBytes[] = {0x55,0x8b,0xec,0x51,0x53};
+const BYTE queueStaminaDrainBytes[] = {0x55,0x8b,0xec,0x80,0x7d,0x10,0x00};
+constexpr uintptr_t meleeHitCallAddress = 0x488a55; // call 0x49d3e0, returning to meleeHitReturnAddress
+constexpr uintptr_t damageFunctionAddress = 0x49d3e0;
 const BYTE restoreBytes[] = {0x83,0xc4,0x0c,0x80,0x7d,0x10,0x00};
 const BYTE serializeBytes[] = {0x8b,0x45,0x08,0x8b,0x08};
 const BYTE saveLabelBytes[] = {0x8b,0x4c,0x8d,0xbc,0x3b,0x08};
@@ -352,9 +402,14 @@ bool supportedImage() {
     }
     if(*reinterpret_cast<const uintptr_t*>(relocated(menuSelectAddress)+5) != relocated(gameStateAddress) ||
         std::memcmp(reinterpret_cast<void*>(relocated(appendRowAddress)),appendRowBytes,sizeof(appendRowBytes)) ||
-        std::memcmp(reinterpret_cast<void*>(relocated(clearRowsAddress)),clearRowsBytes,sizeof(clearRowsBytes)))
+        std::memcmp(reinterpret_cast<void*>(relocated(clearRowsAddress)),clearRowsBytes,sizeof(clearRowsBytes)) ||
+        std::memcmp(reinterpret_cast<void*>(relocated(queueStaminaDrainAddress)),queueStaminaDrainBytes,sizeof(queueStaminaDrainBytes)))
         return false;
-    return true;
+    constexpr BYTE callOpcode = 0xe8;
+    const auto* meleeHitCall = reinterpret_cast<const BYTE*>(relocated(meleeHitCallAddress));
+    const auto callDisplacement = *reinterpret_cast<const int32_t*>(meleeHitCall+1);
+    return meleeHitCall[0] == callOpcode &&
+        meleeHitCallAddress+5+callDisplacement == damageFunctionAddress && meleeHitCallAddress+5 == meleeHitReturnAddress;
 }
 void log(const wots4::ModContext& context, const char* message) {
     if(context.host->log) context.host->log(context.module,message);
@@ -421,6 +476,8 @@ extern "C" BOOL WINAPI ModInitialize(const wots4::ModContext* context) {
     selectionContinuation = relocated(menuSelectAddress)+sizeof(menuSelectBytes);
     gameStatePointer = relocated(gameStateAddress);
     saveLabelContinuation = relocated(0x53fe60);
+    meleeHitReturn = relocated(meleeHitReturnAddress);
+    queueStaminaDrainFunction = reinterpret_cast<void*>(relocated(queueStaminaDrainAddress));
     if(!installHooks(*context)) return FALSE;
     log(*context,"[INFO] Harakiri initialized; the difficulty menu includes one-hit death mode for the player and NPCs.");
     return TRUE;
