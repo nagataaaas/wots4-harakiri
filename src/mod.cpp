@@ -1,6 +1,7 @@
 #include <wots4/mod_api.h>
 #include <MinHook.h>
 #include <array>
+#include <cstddef>
 #include <cstring>
 #include <cwchar>
 
@@ -411,6 +412,9 @@ bool supportedImage() {
     return meleeHitCall[0] == callOpcode &&
         meleeHitCallAddress+5+callDisplacement == damageFunctionAddress && meleeHitCallAddress+5 == meleeHitReturnAddress;
 }
+// HostApi only grows at the end, so an older ModLoader still has every member up to this one.
+#define HOST_HAS(host,member) ((host)->size >= offsetof(wots4::HostApi,member)+sizeof((host)->member))
+
 void log(const wots4::ModContext& context, const char* message) {
     if(context.host->log) context.host->log(context.module,message);
 }
@@ -453,9 +457,9 @@ bool installHooks(const wots4::ModContext& context) {
 extern "C" BOOL WINAPI ModInitialize(const wots4::ModContext* context) {
     if(!context || context->size < sizeof(*context) || !context->game || !context->directory || !context->host)
         return FALSE;
-    if(context->version != wots4::modApiVersion || context->host->size < sizeof(wots4::HostApi) ||
+    if(context->version != wots4::modApiVersion || !HOST_HAS(context->host,releaseClaims) ||
         context->host->version != wots4::modApiVersion || !context->host->claim || !context->host->releaseClaims) {
-        if(context->host->size >= sizeof(uint32_t)*2+sizeof(void*) && context->host->log)
+        if(HOST_HAS(context->host,log) && context->host->log)
             context->host->log(context->module,
                 "[ERROR] Could not initialize Harakiri: the ModLoader's Mod API version differs from the one this Mod was built for; initialization stopped.");
         return FALSE;
