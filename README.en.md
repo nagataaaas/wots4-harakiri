@@ -40,6 +40,19 @@ The following have been confirmed to play without problems in game.
 
 ## Installation
 
+### Automatic installation (recommended)
+
+1. Close the game.
+2. Download and run [WayOfTheSamurai4ModInstaller.exe](https://github.com/nagataaaas/wots4-mods/releases/latest/download/WayOfTheSamurai4ModInstaller.exe).
+   - If "Windows protected your PC" appears, click "More info" → "Run anyway".
+   - When asked whether to allow it to make changes as administrator, click "Yes" (it writes to the game folder).
+3. Follow the screen and choose `harakiri` in the list of Mods. Move with Up and Down, choose with Space and confirm with Enter.
+
+The ModLoader is installed along with it. The same steps update the Mod, and your settings (`config.ini`) are kept.
+
+<details>
+<summary>Manual installation</summary>
+
 > [!WARNING]
 > Install [wots4-mods (ModLoader)](https://github.com/nagataaaas/wots4-mods) first.
 
@@ -49,6 +62,8 @@ The following have been confirmed to play without problems in game.
 4. Confirm that `{game installation folder}/mods/harakiri/mod.dll` exists, then start the game.
 
 To keep your current settings when updating, replace only `mod.dll` and do not overwrite `mods/harakiri/config.ini`.
+
+</details>
 
 ## Uninstallation
 
