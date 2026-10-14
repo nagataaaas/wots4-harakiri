@@ -50,6 +50,14 @@ The following have been confirmed to play without problems in game.
 
 To keep your current settings when updating, replace only `mod.dll` and do not overwrite `mods/harakiri/config.ini`.
 
+## Uninstallation
+
+1. Close the game.
+2. Delete the `{game installation folder}/mods/harakiri/` folder. The settings in it (`config.ini`) are deleted too.
+
+> [!WARNING]
+> Saves made on the Harakiri difficulty can no longer be loaded once this Mod is removed.
+
 ## Settings
 
 Close the game and edit `{game installation folder}/mods/harakiri/config.ini`. Save the file and start the game to apply the settings.
